@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Coordenadas | meu-app-geo</title>
+    
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet.js CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <span class="logo-icon">✦</span>
+                <div class="logo-text">
+                    <h1>Conversor de Coordenadas</h1>
+                    <span class="logo-subtitle">Processamento Geográfico - meu-app-geo</span>
+                </div>
+            </div>
+            <div class="header-badges">
+                <div class="badge badge-success">
+                    <span class="pulse-dot"></span> Motor PyProj: Ativo
+                </div>
+                <div class="badge badge-info">Precisão Analítica: 1cm</div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Grid -->
+        <main class="dashboard-grid">
+            
+            <!-- Left Column: Settings and Controls -->
+            <section class="control-panel">
+                
+                <form id="converter-form" enctype="multipart/form-data">
+                
+                <!-- Card 1: Upload File -->
+                <div class="panel-card" id="upload-card">
+                    <div class="card-header">
+                        <span class="card-num">01</span>
+                        <h2>Arquivo de Coordenadas</h2>
+                    </div>
+                    
+                    <div class="drop-zone" id="file-drop-zone">
+                        <input type="file" id="file-input" name="file" accept=".txt,.csv" required style="display:none;">
+                        <div class="drop-zone-content">
+                            <div class="upload-icon">⇪</div>
+                            <p class="primary-text">Arraste seu arquivo TXT ou CSV aqui</p>
+                            <p class="secondary-text">ou clique para navegar pelos arquivos</p>
+                            <div class="file-spec">Aceita arquivos separados por vírgula, ponto e vírgula ou tabulação</div>
+                        </div>
+                    </div>
+                    
+                    <div class="selected-file-indicator" id="file-indicator" style="display:none;">
+                        <span class="file-icon">🗎</span>
+                        <span class="file-name" id="selected-file-name">pontos.txt</span>
+                        <button type="button" class="remove-file-btn" id="remove-file-btn">✕</button>
+                    </div>
+                </div>
+
+                <!-- Card 2: Geodetic Settings - Input (Origin) -->
+                <div class="panel-card">
+                    <div class="card-header">
+                        <span class="card-num">02</span>
+                        <h2>Sistema de Entrada (Origem)</h2>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="source-type">Tipo de Coordenada:</label>
+                        <select id="source-type" name="source_type" class="custom-select">
+                            <option value="geo" selected>Geográfica Decimal (Lat/Lon)</option>
+                            <option value="gms">Geográfica GMS (Graus, Min, Seg)</option>
+                            <option value="utm">Projetada UTM (Métrica)</option>
+                            <option value="local">Topografia Local (Arbitrária)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="source-datum-container">
+                        <label for="source-datum">Datum de Referência:</label>
+                        <select id="source-datum" name="source_datum" class="custom-select">
+                            <option value="SIRGAS_2000" selected>SIRGAS 2000 (Brasil/Am. do Sul)</option>
+                            <option value="WGS_84">WGS 84 (Global/GPS)</option>
+                            <option value="SAD_69">SAD69 (Histórico Nacional)</option>
+                            <option value="CORREGO_ALEGRE">Córrego Alegre (Histórico Antigo)</option>
+                            <option value="ARATU">Aratu (Histórico Regional)</option>
+                        </select>
+                    </div>
+
+                    <!-- Collapsible UTM Source Settings -->
+                    <div class="local-params-panel" id="source-utm-container" style="display:none;">
+                        <h3 class="panel-subtitle">Parâmetros do Fuso UTM de Entrada</h3>
+                        <div class="form-row">
+                            <div class="form-group half-width">
+                                <label for="source-utm-zone">Fuso UTM (1 a 60):</label>
+                                <input type="number" id="source-utm-zone" name="source_utm_zone" value="23" min="1" max="60" class="custom-input">
+                            </div>
+                            <div class="form-group half-width">
+                                <label for="source-utm-hemi">Hemisfério:</label>
+                                <select id="source-utm-hemi" name="source_utm_hemi" class="custom-select">
+                                    <option value="S" selected>Sul (S)</option>
+                                    <option value="N">Norte (N)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3: Geodetic Settings - Output (Target) -->
+                <div class="panel-card">
+                    <div class="card-header">
+                        <span class="card-num">03</span>
+                        <h2>Sistema de Saída (Destino)</h2>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="target-type">Tipo de Coordenada:</label>
+                        <select id="target-type" name="target_type" class="custom-select">
+                            <option value="UTM_AUTO" selected>(Recomendado) UTM Automático</option>
+                            <option value="utm">Projetada UTM Manual</option>
+                            <option value="geo">Geográfica Decimal (Lat/Lon)</option>
+                            <option value="gms">Geográfica GMS (Graus, Min, Seg)</option>
+                            <option value="MGRS">MGRS (Grid Militar)</option>
+                            <option value="local">Topografia Local (Arbitrária)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="target-datum-container">
+                        <label for="target-datum">Datum de Referência:</label>
+                        <select id="target-datum" name="target_datum" class="custom-select">
+                            <option value="SIRGAS_2000" selected>SIRGAS 2000 (Brasil/Am. do Sul)</option>
+                            <option value="WGS_84">WGS 84 (Global/GPS)</option>
+                            <option value="SAD_69">SAD69 (Histórico Nacional)</option>
+                            <option value="CORREGO_ALEGRE">Córrego Alegre (Histórico Antigo)</option>
+                            <option value="ARATU">Aratu (Histórico Regional)</option>
+                        </select>
+                    </div>
+
+                    <!-- Collapsible UTM Target Settings -->
+                    <div class="local-params-panel" id="target-utm-container" style="display:none;">
+                        <h3 class="panel-subtitle">Parâmetros do Fuso UTM de Saída</h3>
+                        <div class="form-row">
+                            <div class="form-group half-width">
+                                <label for="target-utm-zone">Fuso UTM (1 a 60):</label>
+                                <input type="number" id="target-utm-zone" name="target_utm_zone" value="23" min="1" max="60" class="custom-input">
+                            </div>
+                            <div class="form-group half-width">
+                                <label for="target-utm-hemi">Hemisfério:</label>
+                                <select id="target-utm-hemi" name="target_utm_hemi" class="custom-select">
+                                    <option value="S" selected>Sul (S)</option>
+                                    <option value="N">Norte (N)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Collapsible Local Coordinates Parameter Panel (Topography) -->
+                    <div class="local-params-panel" id="local-params-container" style="display:none;">
+                        <div class="form-row" style="align-items: flex-end; margin-bottom: 12px; gap: 10px;">
+                            <div style="flex-grow: 1;">
+                                <h3 class="panel-subtitle" style="margin: 0;">Parâmetros da Topografia Local</h3>
+                                <p class="panel-desc" style="margin: 0; line-height: 1.3;">Defina as coordenadas reais da origem (0,0) do levantamento.</p>
+                            </div>
+                            <button type="button" class="submit-btn" id="map-pin-btn" style="padding: 8px 12px; width: auto; font-size: 0.78rem; display: flex; align-items: center; gap: 5px; box-shadow: none;">📍 Definir no Mapa</button>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group half-width">
+                                <label for="local-origin-x">Origem E (X) UTM:</label>
+                                <input type="number" id="local-origin-x" name="local_origin_x" value="650000.000" step="0.001" class="custom-input">
+                            </div>
+                            <div class="form-group half-width">
+                                <label for="local-origin-y">Origem N (Y) UTM:</label>
+                                <input type="number" id="local-origin-y" name="local_origin_y" value="7800000.000" step="0.001" class="custom-input">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group half-width">
+                                <label for="local-origin-zone">Zona UTM Sul:</label>
+                                <select id="local-origin-zone" name="local_origin_zone" class="custom-select">
+                                    <option value="18">18S</option>
+                                    <option value="19">19S</option>
+                                    <option value="20">20S</option>
+                                    <option value="21">21S</option>
+                                    <option value="22">22S</option>
+                                    <option value="23" selected>23S (SP/MG/DF)</option>
+                                    <option value="24">24S (BA/MG/ES)</option>
+                                    <option value="25">25S</option>
+                                </select>
+                            </div>
+                            <div class="form-group half-width">
+                                <label for="local-rotation">Rotação da Grade (Graus):</label>
+                                <input type="number" id="local-rotation" name="local_rotation" value="0.0" step="0.00001" class="custom-input">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="submit-btn" id="process-btn">
+                    <span class="btn-text">Processar e Converter Coordenadas</span>
+                    <span class="btn-glow"></span>
+                </button>
+                </form>
+            </section>
+
+            <!-- Right Column: Map, Stats, Results Table -->
+            <section class="results-panel">
+                
+                <!-- Map Card Container -->
+                <div class="panel-card map-card">
+                    <div class="card-header">
+                        <span class="card-num">04</span>
+                        <h2>Mapa de Verificação de Pontos (Visualização dos primeiros 100)</h2>
+                    </div>
+                    <div id="map-container">
+                        <!-- O mapa será renderizado aqui pelo Leaflet -->
+                    </div>
+                </div>
+
+                <!-- Live Statistics and Action Downloads -->
+                <div class="stats-and-actions" id="results-meta-panel" style="display:none;">
+                    
+                    <!-- Stats Grid -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-total-points">0</div>
+                            <div class="stat-label">Total de Pontos</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-time">0.000s</div>
+                            <div class="stat-label">Tempo Processamento</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-delimiter">-</div>
+                            <div class="stat-label">Delimitador</div>
+                        </div>
+                        <div class="stat-card" id="stat-alert-card">
+                            <div class="stat-value" id="stat-alerts">0</div>
+                            <div class="stat-label">Alertas de Precisão (>2cm)</div>
+                        </div>
+                    </div>
+
+                    <!-- Downloads Section -->
+                    <div class="downloads-panel">
+                        <h3>Downloads Disponíveis</h3>
+                        <div class="download-buttons">
+                            <a href="#" id="download-csv-btn" class="download-btn csv-btn">
+                                <span class="d-icon">📥</span> Baixar CSV Convertido
+                            </a>
+                            <a href="#" id="download-kml-btn" class="download-btn kml-btn">
+                                <span class="d-icon">🗺</span> Baixar KML (Google Earth)
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Table Card -->
+                <div class="panel-card table-card" id="results-table-panel" style="display:none;">
+                    <div class="card-header">
+                        <span class="card-num">05</span>
+                        <h2>Tabela Analítica (Amostra dos primeiros 100 pontos)</h2>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="analytics-table" id="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Ponto ID</th>
+                                    <th>Original X / Long</th>
+                                    <th>Original Y / Lat</th>
+                                    <th>Convertido X</th>
+                                    <th>Convertido Y</th>
+                                    <th>Z (Cota/Alt)</th>
+                                    <th>Erro (m)</th>
+                                    <th>Status (2cm)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-table-body">
+                                <!-- Pontos injetados via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Initial Idle Placeholder Card -->
+                <div class="panel-card idle-placeholder" id="idle-placeholder-card">
+                    <div class="placeholder-content">
+                        <div class="placeholder-icon">🗺️</div>
+                        <h2>Aguardando Arquivo para Processamento</h2>
+                        <p>Faça o upload do arquivo contendo as coordenadas à esquerda e configure os parâmetros geodésicos para visualizar o mapa interativo e as estatísticas analíticas de precisão.</p>
+                    </div>
+                </div>
+                
+                <!-- Loading Card -->
+                <div class="panel-card loading-card" id="loading-card" style="display:none;">
+                    <div class="spinner-content">
+                        <div class="spinner"></div>
+                        <h2>Processando Milhares de Coordenadas...</h2>
+                        <p>Acelerando cálculos vetoriais através do motor Pandas + PyProj.</p>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+        
+        <!-- Footer -->
+        <footer class="app-footer-bar">
+            <p>&copy; 2026 Conversor de Coordenadas - Desenvolvido em conjunto com Antigravity AI. Algoritmos de transformação baseados no motor PROJ/PyProj.</p>
+        </footer>
+    </div>
+
+    <!-- Modal para Seleção de Origem no Mapa -->
+    <div class="modal-overlay" id="origin-modal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Definir Origem da Topografia</h2>
+                <button type="button" class="close-modal-btn" id="close-modal-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <p>Clique em qualquer lugar no mapa abaixo para capturar as coordenadas de origem e convertê-las para UTM automaticamente.</p>
+                <div id="modal-map-container" style="width:100%; height:320px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background-color:#060913;"></div>
+            </div>
+            <div class="modal-footer">
+                <span class="modal-coords-label" id="modal-coords-display">Nenhum ponto selecionado</span>
+                <button type="button" class="submit-btn" id="confirm-origin-btn" disabled style="padding: 10px 20px; width: auto; font-size: 0.88rem; box-shadow: none;">Confirmar Origem</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Balloon de Auto-Detecção -->
+    <div class="toast-balloon" id="detect-toast" style="display:none;">
+        <div class="toast-content">
+            <span class="toast-icon">⚡</span>
+            <div class="toast-text">
+                <p class="toast-title">Coordenadas Detectadas!</p>
+                <p class="toast-desc">Detectamos que os valores parecem ser UTM SIRGAS 2000 Sul. Deseja configurar a entrada automaticamente?</p>
+            </div>
+        </div>
+        <div class="toast-actions">
+            <button type="button" class="toast-btn yes-btn" id="toast-yes-btn">Sim</button>
+            <button type="button" class="toast-btn no-btn" id="toast-no-btn">Não</button>
+        </div>
+    </div>
+
+    <!-- Leaflet.js JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Custom Map and Dashboard Script -->
+    <script src="{{ url_for('static', filename='js/map.js') }}"></script>
+</body>
+</html>
