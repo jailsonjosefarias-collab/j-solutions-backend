@@ -1,0 +1,6 @@
+id;lat;long;cota
+ponto_bh_gms;19° 55' 18.8" S;43° 56' 16.2" W;850.55
+ponto_sp_gms;23 33 01.8 S;46 37 59.8 W;760.12
+ponto_rj_gms;-22 54 24.5;-43 10 21.1;2.45
+ponto_df_gms;15d47m39.1s S;47d52m58.3s W;1170.80
+ponto_poa_dec;-30.0346;-51.2287;10.15
