@@ -5,3 +5,4 @@ pandas
 gunicorn
 numpy
 pyproj
+flask-cors
