@@ -7,7 +7,10 @@ from werkzeug.utils import secure_filename
 # Importar o motor de conversão geográfico e KML
 from converter import process_coordinate_conversion, generate_kml_string
 
+from flask_cors import CORS
+
 app = Flask(__name__)
+CORS(app)
 
 # Configurações do Servidor
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
