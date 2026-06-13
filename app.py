@@ -317,17 +317,44 @@ def adjust_base():
     if not auth_ok:
         return jsonify({"success": False, "message": auth_res}), 401
         
-    if 'file' not in request.files:
-        return jsonify({"success": False, "message": "Arquivo PPP não fornecido."}), 400
-        
-    file = request.files['file']
-    try:
-        file_content = file.read().decode('utf-8', errors='ignore')
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Erro ao ler arquivo: {str(e)}"}), 400
-        
     from ppp_adjuster import parse_ppp_report
-    ppp_coords = parse_ppp_report(file_content)
+    ppp_coords = None
+    
+    if 'file' in request.files:
+        file = request.files['file']
+        if file.filename != '':
+            try:
+                file_content = file.read().decode('utf-8', errors='ignore')
+                ppp_coords = parse_ppp_report(file_content)
+            except Exception as e:
+                return jsonify({"success": False, "message": f"Erro ao ler arquivo: {str(e)}"}), 400
+
+    # Se o arquivo não foi enviado ou não continha coordenadas válidas, tenta ler os campos manuais
+    if ppp_coords is None or ppp_coords.get('easting') is None or ppp_coords.get('northing') is None:
+        try:
+            base_ppp_x_val = request.form.get('base_ppp_x')
+            base_ppp_y_val = request.form.get('base_ppp_y')
+            base_ppp_z_val = request.form.get('base_ppp_z', '0.0')
+            
+            if base_ppp_x_val and base_ppp_y_val:
+                if ppp_coords is None:
+                    ppp_coords = {
+                        'easting': float(base_ppp_x_val),
+                        'northing': float(base_ppp_y_val),
+                        'altitude': float(base_ppp_z_val) if base_ppp_z_val else 0.0,
+                        'latitude': None,
+                        'longitude': None
+                    }
+                else:
+                    ppp_coords['easting'] = float(base_ppp_x_val)
+                    ppp_coords['northing'] = float(base_ppp_y_val)
+                    if base_ppp_z_val:
+                        ppp_coords['altitude'] = float(base_ppp_z_val)
+            else:
+                if ppp_coords is None:
+                    return jsonify({"success": False, "message": "Arquivo PPP ou Coordenadas Corrigidas (PPP) da Base manuais não fornecidos."}), 400
+        except (TypeError, ValueError) as e:
+            return jsonify({"success": False, "message": f"Coordenadas Corrigidas (PPP) da Base manuais inválidas: {str(e)}"}), 400
     
     datum = request.form.get('datum', 'SIRGAS_2000')
     try:
