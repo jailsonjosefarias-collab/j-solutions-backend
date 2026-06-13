@@ -44,13 +44,9 @@ def detect_delimiter(file_path):
 def parse_gms_to_decimal(val):
     """
     Analisa de forma ultra robusta strings em formato GMS (Graus, Minutos e Segundos)
-    e converte para Graus Decimais (float).
-    Suporta formatos como:
-      - 23° 33' 01.8" S
-      - 23 33 01.8 S
-      - -23 33 1.8
-      - 23d 33m 01.8s S
-      - -23.5505 (decimais diretos)
+    ou Decimais e converte para Graus Decimais (float), aplicando sinal negativo (-)
+    automaticamente por estarmos no Hemisfério Sul/Oeste, exceto se houver indicação
+    positiva explícita (+ ou N, NORTE, E, EAST, L, LESTE).
     """
     if pd.isna(val) or val is None:
         return np.nan
@@ -58,12 +54,6 @@ def parse_gms_to_decimal(val):
     val_str = str(val).strip()
     if not val_str:
         return np.nan
-        
-    # Tentar conversão direta para decimal
-    try:
-        return float(val_str.replace(',', '.'))
-    except ValueError:
-        pass
         
     # Substituir vírgula decimal por ponto na parte dos segundos para evitar conflito com espaço
     val_str = re.sub(r'(\d+),(\d+)', r'\1.\2', val_str)
@@ -74,12 +64,6 @@ def parse_gms_to_decimal(val):
     if not numbers:
         return np.nan
         
-    if len(numbers) == 1:
-        try:
-            return float(numbers[0])
-        except ValueError:
-            return np.nan
-            
     # Atribuir Graus, Minutos e Segundos
     try:
         d = float(numbers[0])
@@ -90,18 +74,16 @@ def parse_gms_to_decimal(val):
         
     decimal = abs(d) + (m / 60.0) + (s / 3600.0)
     
-    # Determinar se é negativo
-    is_negative = False
-    if d < 0 or '-' in numbers[0]:
-        is_negative = True
-        
-    # Verificar hemisférios (S, W, O representam negativos)
+    # Verificar hemisférios ou indicação explícita positiva
     val_upper = val_str.upper()
-    if any(h in val_upper for h in ['S', 'SUL', 'W', 'WEST', 'O', 'OESTE']):
-        is_negative = True
-    elif any(h in val_upper for h in ['N', 'NORTE', 'E', 'EAST', 'L', 'LESTE']):
-        # Sobrescreve sinal negativo se explicitado hemisfério positivo
+    has_explicit_positive = (val_str.startswith('+') or 
+                             any(h in val_upper for h in ['N', 'NORTE', 'E', 'EAST', 'L', 'LESTE']))
+    
+    is_negative = True # Padrão: Hemisfério Sul/Oeste
+    if has_explicit_positive:
         is_negative = False
+    elif d < 0 or '-' in numbers[0]:
+        is_negative = True
         
     if is_negative:
         decimal = -decimal
@@ -317,7 +299,7 @@ def process_coordinate_conversion(
         
     # Limpar as colunas X e Y
     # Se a entrada for GMS (Graus Minutos Segundos), aplicamos o parser inteligente
-    if source_type == 'gms':
+    if source_type in ['gms', 'geo']:
         df[col_x] = df[col_x].apply(parse_gms_to_decimal)
         df[col_y] = df[col_y].apply(parse_gms_to_decimal)
     else:
@@ -544,7 +526,9 @@ def process_coordinate_conversion(
     df_out['PRECISION_DEV_M'] = precision_deviations
     df_out['PRECISION_ALERT'] = precision_alerts
     
-    if zones_out:
+    if target_type == 'utm':
+        df_out['UTM_ZONE'] = f"{target_utm_zone}{target_utm_hemi}"
+    elif zones_out:
         df_out['UTM_ZONE'] = zones_out
         
     # Formatação das colunas numéricas de saída
